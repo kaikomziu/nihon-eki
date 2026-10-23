@@ -38,7 +38,14 @@ function statBars(t) {
 function renderShop() {
   const list = $('shopList');
   list.innerHTML = '';
-  for (const t of TRAINS) {
+  const order = [...TRAINS.filter(t => !t.real), ...TRAINS.filter(t => t.real)];
+  for (const t of order) {
+    if (t === order.find(x => x.real === t.real)) {
+      const h = document.createElement('h2');
+      h.className = 'shop-sec';
+      h.innerHTML = t.real ? '🚉 実在モデル <small>形式名と塗装を再現</small>' : '🎨 オリジナル';
+      list.appendChild(h);
+    }
     const owned = save.owned.includes(t.id);
     const cur = save.selected === t.id;
     const c = document.createElement('div');
@@ -48,7 +55,7 @@ function renderShop() {
     if (cur) btn = '<button class="cur" disabled>使用中</button>';
     else if (owned) btn = '<button class="sel">この電車にする</button>';
     else btn = `<button ${save.coins < t.price ? 'disabled' : ''}>🪙 ${t.price.toLocaleString()} で購入</button>`;
-    c.innerHTML = `<h3>${ICON[t.style]} ${t.name}</h3><div class="desc">${t.desc}<br>${t.cars}両編成 ・ 最高 ${t.vmax}km/h</div>
+    c.innerHTML = `<h3>${ICON[t.style]} ${t.name}${t.real ? ' <span class="real-tag">実在</span>' : ''}</h3><div class="desc">${t.desc}<br>${t.cars}両編成 ・ 最高 ${t.vmax}km/h</div>
       <div class="stats">${statBars(t)}</div>${btn}`;
     const b = c.querySelector('button');
     b.onclick = () => {

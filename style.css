@@ -159,3 +159,8 @@ button{font-family:inherit;cursor:pointer;border:none;color:inherit}
 .sb-line{display:flex;justify-content:space-between;background:var(--green);color:#fff;font-size:13px;padding:5px 10px;min-height:1.6em}
 .hud.tut .station-board{top:auto;bottom:34%}
 .hud.tut .hud-box:has(#hCoin){display:none}
+
+/* ---------- ショップの区切り ---------- */
+.shop-sec{grid-column:1/-1;margin:8px 0 0;font-size:18px;color:#fff;border-bottom:3px solid var(--green);padding-bottom:4px}
+.shop-sec small{font-size:12px;color:var(--gray);font-weight:500;margin-left:6px}
+.real-tag{font-size:11px;background:#2a3f63;color:#fff;border-radius:4px;padding:1px 6px;vertical-align:middle}

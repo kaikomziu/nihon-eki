@@ -1,6 +1,7 @@
 // 電車の3Dモデル（ローカル +X が進行方向、+Y が上）
 import * as THREE from 'three';
 
+export const NOSE_LEN = { shinkansen: 9, maglev: 11, express: 3.2 };
 export const CAR_LEN = { commuter: 20, express: 21, shinkansen: 25, maglev: 24, steam: 17 };
 const GAP = 0.8;
 
@@ -36,16 +37,21 @@ function carBody(t, len, isHead, isTail, style) {
   const W = style === 'shinkansen' || style === 'maglev' ? 3.35 : 2.9;
   const H = style === 'commuter' ? 3.0 : 2.85;
   const y0 = style === 'maglev' ? 1.0 : 1.3;
-  const nose = style === 'shinkansen' ? 9 : style === 'maglev' ? 11 : style === 'express' ? 3.2 : 0;
+  const nose = t.nose ?? NOSE_LEN[style] ?? 0;
+  const top = t.top !== undefined ? new THREE.MeshLambertMaterial({ color: t.top }) : null;
   const front = isHead ? nose : 0, rear = isTail ? nose : 0;
   const L = len - front - rear;
   const cx = (rear - front) / 2;
 
   g.add(part(box, body, L, H, W, cx, y0 + H / 2, 0));
   g.add(part(box, glass, L - 1.5, 0.9, W + 0.02, cx, y0 + H * 0.62, 0));
+  if (t.band !== undefined) { // 窓まわりの帯
+    g.add(part(box, new THREE.MeshLambertMaterial({ color: t.band }), L, H * 0.42, W + 0.01, cx, y0 + H * 0.62, 0));
+  }
   g.add(part(box, stripe, L, 0.32, W + 0.03, cx, y0 + H * 0.3, 0));
   if (style !== 'commuter') g.add(part(box, stripe2, L, 0.12, W + 0.03, cx, y0 + H * 0.42, 0));
   g.add(part(box, roofMat, L, 0.25, W - 0.3, cx, y0 + H + 0.12, 0));
+  if (top) g.add(part(box, top, L, H * 0.22, W + 0.02, cx, y0 + H * 0.89, 0)); // 上半分の塗り分け
   if (style === 'commuter') {
     // ドア
     for (const dx of [-0.36, -0.12, 0.12, 0.36]) {
@@ -75,10 +81,19 @@ function carBody(t, len, isHead, isTail, style) {
     n2.scale.set(H * 0.12, nose * 0.97, W / 2 + 0.03);
     n2.position.set(ex, y0 + H * 0.3, 0);
     g.add(n2);
-    const win = part(box, glass, nose * 0.35, 0.6, W * 0.55, ex + dir * nose * 0.32, y0 + H * 0.78, 0);
-    win.rotation.z = -dir * 0.35;
+    if (top) {
+      const n3 = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), top);
+      n3.rotation.z = -dir * Math.PI / 2;
+      n3.scale.set(H * 0.22, nose * 0.9, W / 2 * 0.72);
+      n3.position.set(ex, y0 + H * 0.82, 0);
+      g.add(n3);
+    }
+    // 運転台の窓：楕円体の表面すれすれに置く
+    const wf = 0.3, wy = Math.sqrt(1 - wf * wf) * H / 2;
+    const win = part(box, glass, Math.max(1.6, nose * 0.3), 0.5, W * 0.5, ex + dir * nose * wf, y0 + H / 2 + wy - 0.12, 0);
+    win.rotation.z = -dir * Math.atan(H / 2 / nose) * 0.9;
     g.add(win);
-    if (lit) for (const z of [-1, 1]) g.add(part(box, lightMat, 0.5, 0.15, 0.4, ex + dir * nose * 0.6, y0 + H * 0.35, z * 0.9));
+    if (lit) for (const z of [-1, 1]) g.add(part(box, lightMat, 0.6, 0.18, 0.5, ex + dir * nose * 0.8, y0 + H * 0.4, z * 0.8));
   };
   capEnd(1);
   capEnd(-1);

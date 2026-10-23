@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { save, persist, trainById, effectiveStats, TRAINS } from './data.js';
 import { Path, A_SIGN } from './track.js';
 import { World } from './world.js';
-import { buildTrain } from './train.js';
+import { buildTrain, NOSE_LEN } from './train.js';
 import { initAudio, setRunning, sfx } from './audio.js';
 import { $, show, overlay, refreshCoins } from './ui.js';
 
@@ -23,7 +23,6 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-const NOSE = { shinkansen: 9, maglev: 11, express: 3.2 };
 const tmpA = { x: 0, z: 0, h: 0, k: 0 }, tmpB = { x: 0, z: 0, h: 0, k: 0 };
 const v3 = new THREE.Vector3(), look = new THREE.Vector3();
 
@@ -337,7 +336,7 @@ function updateCamera(dt) {
   let eye, tgt;
   train.cars[0].obj.visible = G.cam !== 0; // 運転席視点では先頭車を隠す
   if (G.cam === 0) {
-    const back = (NOSE[style] || 0) * 0.5 + 1;
+    const back = (trainDef.nose ?? NOSE_LEN[style] ?? 0) * 0.5 + 1;
     path.sample(G.s - back, tmpA);
     eye = v3.set(tmpA.x, 3.5 + by, tmpA.z);
     path.sample(G.s + 70, tmpB);
@@ -588,4 +587,16 @@ requestAnimationFrame(loop);
 window.__game = {
   get G() { return G; }, get path() { return path; },
   step(n = 60) { for (let i = 0; i < n; i++) updateDrive(1 / 60); renderer.render(scene, camera); },
+  // 先頭車を斜め前から写す
+  view(id) {
+    resize();
+    setupTrack(trainById(id), 30, 12345);
+    placeCars(160, 0, 0);
+    path.sample(160 + 14, tmpA);
+    camera.position.set(tmpA.x - Math.sin(tmpA.h) * 14, 4.5, tmpA.z + Math.cos(tmpA.h) * 14);
+    path.sample(160 - 12, tmpB);
+    camera.lookAt(tmpB.x, 2.4, tmpB.z);
+    world.update(160, camera.position);
+    renderer.render(scene, camera);
+  },
 };
