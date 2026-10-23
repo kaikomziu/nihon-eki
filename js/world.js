@@ -285,6 +285,7 @@ export class World {
       const s = a + rnd() * CHUNK;
       const side = rnd() < 0.5 ? -1 : 1;
       const off = side * (12 + rnd() * 140);
+      if (s < 350 && off > 0 && off < 100) continue; // タイトル画面のカメラ位置をあける
       p.sample(s, tmp);
       const x = tmp.x - Math.sin(tmp.h) * off, z = tmp.z + Math.cos(tmp.h) * off;
       const k = 0.7 + rnd() * 0.8;
@@ -301,6 +302,7 @@ export class World {
       const s = a + rnd() * CHUNK;
       const side = rnd() < 0.5 ? -1 : 1;
       const off = side * (16 + rnd() * 50);
+      if (s < 350 && off > 0) continue;
       const w = 6 + rnd() * 5, d = 6 + rnd() * 4, hh = 4 + rnd() * 4;
       const hb = mesh(this.geo.box, this.mat.house[Math.floor(rnd() * 4)]);
       hb.scale.set(w, hh, d);
