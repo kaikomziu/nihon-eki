@@ -2,6 +2,14 @@
 import * as THREE from 'three';
 
 const CHUNK = 200;
+
+// 天気・時間帯ごとの空と光
+const WEATHER = {
+  day: { sky: 0x9fd3f5, near: 300, far: 1800, hemi: 1.1, hemiC: 0xdff2ff, sun: 1.6, sunC: 0xfff3dd, mtn: 0x7f9fb8, snow: 0xf2f6fa },
+  sunset: { sky: 0xf0a868, near: 250, far: 1600, hemi: 0.8, hemiC: 0xffd2a8, sun: 1.3, sunC: 0xff9a50, mtn: 0x8a6f86, snow: 0xffd9c2 },
+  night: { sky: 0x0a1226, near: 120, far: 1000, hemi: 0.22, hemiC: 0x8899cc, sun: 0.15, sunC: 0x8899ff, mtn: 0x1a2236, snow: 0x55617a },
+  rain: { sky: 0x8c98a6, near: 90, far: 800, hemi: 0.8, hemiC: 0xc8d0da, sun: 0.45, sunC: 0xdde3ea, mtn: 0x6e7c8c, snow: 0xc8d0da },
+};
 const tmp = { x: 0, z: 0, h: 0, k: 0 };
 
 // ---------- テクスチャ ----------
@@ -103,6 +111,7 @@ export class World {
     const sun = new THREE.DirectionalLight(0xfff3dd, 1.6);
     sun.position.set(300, 500, 200);
     scene.add(hemi, sun);
+    this.hemi = hemi; this.sun = sun;
 
     // 地面（カメラに追従、テクスチャ単位でスナップ）
     this.ground = new THREE.Mesh(
@@ -134,6 +143,32 @@ export class World {
     fujiCap.position.set(400, 450, -1650);
     this.mountains.add(fuji, fujiCap);
     scene.add(this.mountains);
+    this.mMat = mMat; this.snow = snow;
+
+    // 星（夜だけ）
+    const starPos = [];
+    for (let i = 0; i < 700; i++) {
+      const a = Math.random() * Math.PI * 2, e = 0.08 + Math.random() * 1.4;
+      starPos.push(Math.cos(a) * Math.cos(e) * 1500, Math.sin(e) * 1500, Math.sin(a) * Math.cos(e) * 1500);
+    }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+    this.stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, fog: false }));
+    this.stars.visible = false;
+    this.mountains.add(this.stars);
+
+    // 雨（カメラのまわりに線を降らせる）
+    const N = 1400, rp = new Float32Array(N * 6);
+    for (let i = 0; i < N; i++) {
+      const x = (Math.random() - 0.5) * 120, y = Math.random() * 40, z = (Math.random() - 0.5) * 120;
+      rp.set([x, y, z, x + 0.12, y - 1.3, z], i * 6);
+    }
+    const rg = new THREE.BufferGeometry();
+    rg.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+    this.rain = new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: 0xc8d4e0, transparent: true, opacity: 0.5 }));
+    this.rain.visible = false;
+    this.rain.frustumCulled = false;
+    scene.add(this.rain);
 
     this.mat = {
       ballast: new THREE.MeshLambertMaterial({ map: ballastTex() }),
@@ -149,11 +184,13 @@ export class World {
       roof: new THREE.MeshLambertMaterial({ color: 0x2a3f63 }),
       platform: new THREE.MeshLambertMaterial({ color: 0xbfb8aa }),
       yellow: new THREE.MeshLambertMaterial({ color: 0xffd23f }),
+      sigHead: new THREE.MeshLambertMaterial({ color: 0x1b1d20 }),
       house: [0xe9dfcf, 0xd8c8b0, 0xf2efe8, 0xcfd8e0].map(c => new THREE.MeshLambertMaterial({ color: c })),
       houseRoof: [0x8a2f2f, 0x2f4f7a, 0x4a4a4a, 0x6b4a2b].map(c => new THREE.MeshLambertMaterial({ color: c })),
     };
     this.geo = {
       sleeper: new THREE.BoxGeometry(0.24, 0.12, 2.3),
+      lamp: new THREE.CircleGeometry(0.3, 16),
       cone: new THREE.ConeGeometry(2.4, 7, 6),
       ball: new THREE.IcosahedronGeometry(3, 0),
       trunk: new THREE.CylinderGeometry(0.3, 0.4, 2.4, 5),
@@ -215,6 +252,17 @@ export class World {
       if (st.stop - 200 > hi) break;
       const key = 's' + st.stop;
       if (st.stop + 100 > lo && !this.extras.has(key)) this.addExtra(key, this.buildStation(st));
+    }
+    for (const sg of this.path.signals) {
+      if (sg.s - 50 > hi) break;
+      const key = 'g' + sg.s;
+      if (sg.s + 50 > lo && !this.extras.has(key)) this.addExtra(key, this.buildSignal(sg));
+      const o = this.extras.get(key);
+      if (o) {
+        const red = sg.state === 'red';
+        o.userData.r.color.setHex(red ? 0xff2a2a : 0x3a0d0d);
+        o.userData.g.color.setHex(red ? 0x0b2a14 : 0x2bff6e);
+      }
     }
     for (const [k, o] of this.extras) {
       if (o.userData.s < lo - 300) { this.disposeObj(o); this.extras.delete(k); }
@@ -313,6 +361,52 @@ export class World {
       rf.rotation.y = hb.rotation.y + Math.PI / 4;
       grp.add(hb, rf);
     }
+    return grp;
+  }
+
+  setWeather(kind) {
+    const w = WEATHER[kind];
+    this.scene.background.setHex(w.sky);
+    this.scene.fog.color.setHex(w.sky);
+    this.scene.fog.near = w.near; this.scene.fog.far = w.far;
+    this.hemi.intensity = w.hemi; this.hemi.color.setHex(w.hemiC);
+    this.sun.intensity = w.sun; this.sun.color.setHex(w.sunC);
+    this.mMat.color.setHex(w.mtn); this.snow.color.setHex(w.snow);
+    this.stars.visible = kind === 'night';
+    this.rain.visible = kind === 'rain';
+  }
+
+  tick(dt, cam) {
+    if (!this.rain.visible) return;
+    this.rain.position.set(cam.x, cam.y - 20, cam.z);
+    const a = this.rain.geometry.attributes.position, p = a.array;
+    for (let i = 0; i < p.length; i += 6) {
+      let y = p[i + 1] - 45 * dt;
+      if (y < 0) y += 40;
+      p[i + 1] = y; p[i + 4] = y - 1.3;
+    }
+    a.needsUpdate = true;
+  }
+
+  // 停止信号（赤／青の2灯）
+  buildSignal(sg) {
+    const grp = new THREE.Group();
+    grp.userData.s = sg.s + 60;
+    const holder = new THREE.Group();
+    const pole = new THREE.Mesh(this.geo.box, this.mat.pole);
+    pole.scale.set(0.2, 5, 0.2); pole.position.y = 2.5;
+    const head = new THREE.Mesh(this.geo.box, this.mat.sigHead);
+    head.scale.set(0.5, 1.9, 0.9); head.position.y = 5.6;
+    const r = new THREE.MeshBasicMaterial({ color: 0xff2a2a, fog: false });
+    const g = new THREE.MeshBasicMaterial({ color: 0x0b2a14, fog: false });
+    const lr = new THREE.Mesh(this.geo.lamp, r), lg = new THREE.Mesh(this.geo.lamp, g);
+    lr.position.set(-0.27, 6.1, 0); lg.position.set(-0.27, 5.1, 0);
+    lr.rotation.y = lg.rotation.y = -Math.PI / 2;
+    lr.userData.ownMat = lg.userData.ownMat = true;
+    holder.add(pole, head, lr, lg);
+    this.place(holder, sg.s, -3.4);
+    grp.add(holder);
+    grp.userData.r = r; grp.userData.g = g;
     return grp;
   }
 

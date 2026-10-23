@@ -127,14 +127,14 @@ export const STATION_NAMES = [
 ];
 
 const KEY = 'nihoneki_save_v1';
-const DEFAULT = { coins: 0, owned: ['local'], selected: 'local', up: {}, best: 0 };
+const DEFAULT = { coins: 0, owned: ['local'], selected: 'local', up: {}, best: 0, stats: {}, ach: {} };
 
 export const save = load();
 
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem(KEY));
-    if (d && typeof d === 'object') return { ...DEFAULT, ...d, up: { ...(d.up || {}) } };
+    if (d && typeof d === 'object') return { ...DEFAULT, ...d, up: { ...(d.up || {}) }, stats: { ...(d.stats || {}) }, ach: { ...(d.ach || {}) } };
   } catch (e) { /* 読めないときは初期値 */ }
   return structuredClone(DEFAULT);
 }

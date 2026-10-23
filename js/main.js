@@ -4,7 +4,22 @@ import { Path, A_SIGN } from './track.js';
 import { World } from './world.js';
 import { buildTrain, NOSE_LEN } from './train.js';
 import { initAudio, setRunning, sfx } from './audio.js';
-import { $, show, overlay, refreshCoins } from './ui.js';
+import { $, show, overlay, refreshCoins, achToast } from './ui.js';
+import { stat, statMax, checkAch, setUnlockHandler } from './achievements.js';
+
+setUnlockHandler(achToast);
+
+// 走行ごとにランダムで決まる天気・時間帯
+const WX = {
+  day: { label: '☀️ 晴れ', mul: 1 },
+  sunset: { label: '🌇 夕方', mul: 1.05 },
+  night: { label: '🌙 夜', mul: 1.2 },
+  rain: { label: '🌧️ 雨（ブレーキが効きにくい）', mul: 1.25 },
+};
+function pickWeather() {
+  const r = Math.random();
+  return r < 0.45 ? 'day' : r < 0.63 ? 'sunset' : r < 0.82 ? 'night' : 'rain';
+}
 
 // ---------- レンダラー ----------
 const canvas = $('gl');
@@ -63,6 +78,7 @@ let mode = 'title'; // title | drive
 let orbit = 0;
 
 function setupShowcase() {
+  world.setWeather('day');
   setupTrack(trainById(save.selected), 30, 12345);
   placeCars(160, 0, 0);
 }
@@ -86,11 +102,16 @@ let G = null;
 function startDrive(tutorial = false) {
   // チュートリアルは強化なしの通勤電車で固定
   const def = tutorial ? TRAINS[0] : trainById(save.selected);
-  const st = tutorial
+  let st = tutorial
     ? { vmax: def.vmax, accel: def.accel, brake: def.brake, stab: def.stab, coinMul: 1, ats: 0 }
     : effectiveStats(def);
+  const wx = tutorial ? 'day' : pickWeather();
+  world.setWeather(wx);
+  if (wx === 'rain') st = { ...st, brake: st.brake * 0.8 };
   setupTrack(def, st.vmax / 3.6, (Math.random() * 1e9) | 0, tutorial);
   G = {
+    wx, mul: st.coinMul * WX[wx].mul, combo: 0, ci: 0, cvMax: 0, si: 0, achT: 0,
+    run: { dist: 0, stops: 0, signals: 0, night: wx === 'night', rain: wx === 'rain', steam: def.style === 'steam', derailed: false, redRun: false },
     st, s: 160, v: 0, notch: -8, bonus: 0, ats: st.ats, phase: 'run', t: 0,
     cam: 0, lastJoint: 160, msgT: 0, alarmT: 0, derailT: 0, reason: '',
     camPos: new THREE.Vector3(), camLook: new THREE.Vector3(), first: true,
@@ -192,6 +213,7 @@ function updateDrive(dt) {
         sfx.alarm();
       } else if (G.ats > 0) {
         G.ats--;
+        stat('atsSaves');
         G.v = Math.sqrt(A_SIGN / Math.abs(k)) * 0.95;
         setNotch(-8, true);
         message(`🛡️ ATS作動！ 残り${G.ats}回`, 2);
@@ -212,18 +234,39 @@ function updateDrive(dt) {
       }
       if (G.v === 0 && Math.abs(err) <= 10) {
         sta.done = true;
-        const b = 300 + Math.floor(700 * (1 - Math.abs(err) / 10));
+        G.combo++;
+        const b = Math.round((300 + Math.floor(700 * (1 - Math.abs(err) / 10))) * (1 + 0.5 * (G.combo - 1)));
         G.bonus += b;
         sfx.chime();
-        stationBanner(sta, `停車！ 誤差 ${Math.abs(err).toFixed(1)}m　ボーナス +${b}`);
+        const combo = G.combo > 1 ? `　🔗${G.combo}連続` : '';
+        stationBanner(sta, `停車！ 誤差 ${Math.abs(err).toFixed(1)}m　ボーナス +${b}${combo}`);
         if (G.tut) G.tut.station = 'stop';
+        else {
+          G.run.stops++;
+          stat('stops');
+          if (Math.abs(err) <= 0.5) stat('perfect');
+          statMax('comboMax', G.combo);
+          checkAch(G.run);
+        }
       } else if (err > 10) {
         sta.done = true;
-        stationBanner(sta, '通過');
+        stationBanner(sta, G.combo > 1 ? `通過（${G.combo}連続停車ストップ）` : '通過');
+        G.combo = 0;
         if (G.tut) G.tut.station = 'pass';
       }
     }
     if (G.tut) tutUpdate();
+    if (G.phase === 'run' && !G.tut) {
+      judgeCurve();
+      updateSignal(dt);
+      G.achT += dt;
+      if (G.achT > 1) {
+        G.achT = 0;
+        G.run.dist = G.s - 160;
+        statMax('maxKmh', G.v * 3.6);
+        checkAch(G.run);
+      }
+    }
 
     // ガタンゴトン
     if (trainDef.style !== 'maglev' && G.s - G.lastJoint > 25) { G.lastJoint = G.s; if (G.v > 1) sfx.joint(G.v * 3.6); }
@@ -232,6 +275,12 @@ function updateDrive(dt) {
     const shake = over ? 0.04 + 0.12 * (lat / derailA) : Math.min(0.02, G.v / 4000);
     placeCars(G.s, 0.0015 * G.v * G.v / 60, shake);
     updateHud(lat, k);
+  } else if (G.phase === 'overrun') {
+    // 非常ブレーキで停止してから終了
+    G.v = Math.max(0, G.v - 4 * dt);
+    G.s += G.v * dt;
+    placeCars(G.s, 0, G.v > 0 ? 0.05 : 0);
+    if (G.v === 0 && (G.derailT += dt) > 1.5) finish('signal');
   } else if (G.phase === 'derail') {
     G.derailT += dt;
     for (const c of train.cars) {
@@ -248,6 +297,74 @@ function updateDrive(dt) {
   }
   updateCamera(dt);
   world.update(G.s, camera.position);
+}
+
+// カーブを抜けたとき、どれだけ攻めたかでボーナス
+function judgeCurve() {
+  const cv = path.curves[G.ci];
+  if (!cv || G.s < cv.start) return;
+  G.cvMax = Math.max(G.cvMax, G.v * 3.6);
+  if (G.s - train.total < cv.end) return;
+  const r = G.cvMax / cv.limit;
+  if (r >= 1.1) {
+    const b = cv.limit * 6;
+    G.bonus += b;
+    stat('giri');
+    message(`🔥 ギリギリ通過！ <small>+${b}</small>`, 1.8);
+    sfx.coin();
+  } else if (r >= 0.95) {
+    const b = cv.limit * 2;
+    G.bonus += b;
+    message(`⚡ ナイス攻め <small>+${b}</small>`, 1.5);
+  }
+  G.ci++;
+  G.cvMax = 0;
+}
+
+// 停止信号：見えたら赤。しばらく待つと青になる。赤のまま越えると終了
+function updateSignal(dt) {
+  const sg = path.signals[G.si];
+  if (!sg) return;
+  const d = sg.s - G.s;
+  const brakeA = G.st.brake / 3.6;
+  const appear = Math.max(900, (G.st.vmax / 3.6) ** 2 / (2 * brakeA) * 1.5);
+  if (!sg.shown && d < appear) {
+    sg.shown = true;
+    sg.timer = Math.min(15, Math.max(4, d / Math.max(G.v, 8) * (0.5 + Math.random() * 0.8)));
+    message('🚦 この先 停止信号', 2);
+    sfx.alarm();
+  }
+  if (sg.shown && sg.state === 'red') {
+    sg.timer -= G.v === 0 ? dt * 3 : dt; // 止まって待つと早く変わる
+    if (sg.timer <= 0) {
+      sg.state = 'green';
+      if (d < 600) {
+        G.bonus += 200;
+        G.run.signals++;
+        stat('signals');
+        message('🟢 信号よし！ <small>+200</small>', 1.8);
+        sfx.coin();
+      } else message('🟢 進行信号', 1.2);
+    } else if (G.v * G.v / (2 * brakeA) > d - 30) {
+      $('hWarn').style.display = 'block';
+      $('hWarn').textContent = '🔴 赤信号！ ブレーキ！';
+    }
+  }
+  if (d < 0) {
+    if (sg.state === 'red') overrun();
+    G.si++;
+  }
+}
+
+function overrun() {
+  G.run.redRun = true;
+  G.phase = 'overrun';
+  G.derailT = 0;
+  G.reason = `赤信号を ${Math.round(G.v * 3.6)}km/h で通過してしまった`;
+  sfx.alarm();
+  setRunning(0, 0, 0, false);
+  $('hWarn').style.display = 'none';
+  message('🚨 信号冒進！ 緊急停止', 3);
 }
 
 function derail(k, reason) {
@@ -270,34 +387,41 @@ function derail(k, reason) {
   G.cam = 1;
 }
 
-function finish(quit) {
+const RESULT_TITLE = { derail: '脱線！', quit: '運転終了', signal: '信号冒進！' };
+
+function finish(kind = 'derail') {
   G.phase = 'done';
   setRunning(0, 0, 0, false);
   const dist = Math.max(0, Math.floor(G.s - 160));
-  const mul = G.st.coinMul;
+  const mul = G.mul;
   const coins = Math.floor((dist + G.bonus) * mul);
   const isBest = dist > save.best;
   save.coins += coins;
   if (isBest) { save.best = dist; save.bestStation = G.reached; }
+  stat('runs');
+  stat('dist', dist);
+  if (kind === 'derail') { stat('derails'); G.run.derailed = true; }
+  G.run.dist = dist;
   persist();
-  $('rTitle').textContent = quit ? '運転終了' : '脱線！';
-  $('rReason').textContent = quit ? 'おつかれさまでした。' : G.reason;
+  $('rTitle').textContent = RESULT_TITLE[kind];
+  $('rReason').textContent = kind === 'quit' ? 'おつかれさまでした。' : G.reason;
   $('rDist').textContent = dist.toLocaleString() + ' m';
   $('rStation').textContent = G.reached + ' 駅';
   $('btnRetry').textContent = 'もう一度';
   $('rBonus').textContent = '+' + G.bonus.toLocaleString();
-  $('rMul').textContent = 'x' + mul.toFixed(2);
+  $('rMul').textContent = 'x' + mul.toFixed(2) + (WX[G.wx].mul > 1 ? ' ' + WX[G.wx].label.split('（')[0] : '');
   $('rCoin').textContent = '🪙 ' + coins.toLocaleString();
   $('rBest').textContent = isBest ? '🏆 最長記録更新！' : `最長記録 ${Math.floor(save.best).toLocaleString()} m`;
   overlay('result', true);
   sfx.coin();
+  checkAch(G.run);
   refreshCoins();
 }
 
 function updateHud(lat, k) {
   const kmh = G.v * 3.6;
   $('hDist').textContent = Math.floor(G.s - 160).toLocaleString();
-  $('hCoin').textContent = Math.floor((G.s - 160 + G.bonus) * G.st.coinMul).toLocaleString();
+  $('hCoin').textContent = Math.floor((G.s - 160 + G.bonus) * G.mul).toLocaleString();
   $('hSpeed').textContent = Math.floor(kmh);
   $('hGauge').style.width = Math.min(100, kmh / G.st.vmax * 100) + '%';
 
@@ -316,6 +440,8 @@ function updateHud(lat, k) {
   const items = [];
   if (nc) items.push({ d: nc.start - G.s, t: `↪制限${nc.limit}` });
   if (ns && !ns.done) items.push({ d: ns.stop - G.s, t: `🚉${ns.name}` });
+  const sg = path.signals[G.si];
+  if (sg?.shown && !G.tut) items.push({ d: sg.s - G.s, t: sg.state === 'red' ? '🔴信号' : '🟢信号' });
   items.sort((a, b) => a.d - b.d);
   const it = items[0];
   $('hNext').textContent = it ? `${it.t} ${Math.max(0, Math.round(it.d))}m` : '-';
@@ -429,6 +555,7 @@ function tutComplete() {
   save.coins += reward;
   save.tutorialDone = true;
   persist();
+  checkAch();
   $('hud').classList.remove('tut');
   $('rTitle').textContent = 'チュートリアル完了！';
   $('rReason').textContent = '運転士見習い、卒業です。';
@@ -454,6 +581,11 @@ const TIPS = [
   'ATS保安装置を買うと脱線を防いでくれる。',
   '蒸気機関車は遅いけどコインがたくさんもらえる。',
   'PC: ↑↓でノッチ、スペースで非常ブレーキ、Cでカメラ切替。',
+  'カーブを制限速度の1.1倍以上で抜けると「ギリギリ通過」ボーナス！ 攻めすぎると脱線…',
+  '駅に連続で止まると停車ボーナスがどんどん増える。',
+  '赤信号は止まって待とう。止まっていると早く青になる。',
+  '夜と雨の日はコインが多くもらえる。雨はブレーキが効きにくいので注意。',
+  'メニューの「🏆 実績」で隠し実績もさがしてみよう。',
 ];
 
 async function loading(steps) {
@@ -501,7 +633,11 @@ async function goDrive(tutorial = false) {
     ['信号よし！', () => { updateDrive(0.016); renderer.compile(scene, camera); }],
   ]);
   show('hud');
-  if (tutorial) tutRender(); else message('出発進行！ ▲で力行', 2.5);
+  if (tutorial) tutRender();
+  else {
+    const w = WX[G.wx];
+    message(`出発進行！ ▲で力行<br><small>${w.label}${w.mul > 1 ? `　コイン×${w.mul}` : ''}</small>`, 3);
+  }
   busy = false;
 }
 
@@ -523,10 +659,15 @@ $('btnResume').onclick = () => togglePause(false);
 $('btnQuit').onclick = () => {
   overlay('pause', false); paused = false;
   if (G?.tut) goMenu(false);
-  else if (G && G.phase === 'run') finish(true);
+  else if (G && G.phase === 'run') finish('quit');
 };
 $('btnCam').onclick = () => { if (G) { G.cam = (G.cam + 1) % 3; G.first = true; } };
-$('btnHorn').onclick = () => sfx.horn();
+function horn() {
+  sfx.horn();
+  stat('horn');
+  checkAch(G?.run || {});
+}
+$('btnHorn').onclick = horn;
 
 let paused = false;
 function togglePause(on = !paused) {
@@ -563,7 +704,7 @@ window.addEventListener('keydown', e => {
   if (k === 'arrowup' || k === 'w') setNotch(G.notch === -9 ? -8 : G.notch + 1);
   else if (k === 'arrowdown' || k === 's') setNotch(Math.max(-8, G.notch - 1));
   else if (k === ' ') setNotch(-9);
-  else if (k === 'h') sfx.horn();
+  else if (k === 'h') horn();
   else if (k === 'c') $('btnCam').click();
   else if (k === 'n') setNotch(0);
   else return;
@@ -579,13 +720,14 @@ function loop(now) {
   last = now;
   if (mode === 'drive' && G) { if (!paused) updateDrive(dt); }
   else updateShowcase(dt);
+  world.tick(paused ? 0 : dt, camera.position);
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 // デバッグ用
 window.__game = {
-  get G() { return G; }, get path() { return path; },
+  get G() { return G; }, get path() { return path; }, world, camera,
   step(n = 60) { for (let i = 0; i < n; i++) updateDrive(1 / 60); renderer.render(scene, camera); },
   // 先頭車を斜め前から写す
   view(id) {

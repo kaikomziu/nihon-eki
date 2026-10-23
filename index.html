@@ -49,6 +49,7 @@
     <button class="menu-btn" data-go="shop"><span class="ic">🛒</span>ショップ<small>電車を買う</small></button>
     <button class="menu-btn" data-go="upgrade"><span class="ic">🔧</span>アップグレード<small>性能を強化</small></button>
   </div>
+  <button class="menu-ach" data-go="achv">🏆 実績<small id="achCount"></small></button>
   <button class="menu-tut" data-go="tutorial" id="btnTut">🔰 チュートリアル<small>はじめての人はここから</small></button>
   <div class="menu-best">最長走行記録: <b id="bestDist">0</b> m<span id="bestStation"></span></div>
   <button class="link-btn" id="btnBackTitle">タイトルへ</button>
@@ -72,6 +73,17 @@
     <div class="coin-pill">🪙 <span class="coinVal">0</span></div>
   </header>
   <div class="card-list" id="upList"></div>
+</section>
+
+<!-- 実績 -->
+<section id="achv" class="screen">
+  <header class="topbar">
+    <button class="back-btn" data-go="menu">◀ 戻る</button>
+    <div class="station-name">実績</div>
+    <div class="coin-pill">🪙 <span class="coinVal">0</span></div>
+  </header>
+  <div class="ach-head" id="achHead"></div>
+  <div class="ach-list" id="achList"></div>
 </section>
 
 <!-- 走行HUD -->
@@ -129,7 +141,7 @@
     <div class="r-reason" id="rReason"></div>
     <div class="r-row"><span>走行距離</span><b id="rDist">0 m</b></div>
     <div class="r-row"><span>到達駅</span><b id="rStation">-</b></div>
-    <div class="r-row"><span>停車ボーナス</span><b id="rBonus">0</b></div>
+    <div class="r-row"><span>ボーナス</span><b id="rBonus">0</b></div>
     <div class="r-row"><span>コイン倍率</span><b id="rMul">x1.0</b></div>
     <div class="r-row total"><span>獲得コイン</span><b id="rCoin">0</b></div>
     <div class="r-best" id="rBest"></div>
@@ -138,6 +150,7 @@
   </div>
 </section>
 
+<div id="toasts"></div>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

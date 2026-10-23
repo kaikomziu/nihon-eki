@@ -15,6 +15,7 @@ export class Path {
     this.stationGap = stationGap;
     this.x = [0]; this.z = [0]; this.h = [0]; this.k = [0];
     this.curves = [];
+    this.signals = [];
     this.stations = [];
     this.lastStation = 0;
     this.nameIdx = Math.floor(this.rand() * STATION_NAMES.length);
@@ -65,7 +66,10 @@ export class Path {
       return;
     }
     if (!this.nextIsCurve) {
-      this.addPiece(150 + r() * 550, 0, 0);
+      const len = 150 + r() * 550;
+      // 長めの直線にはときどき停止信号を置く
+      if (len > 350 && s0 > 2500 && r() < 0.28) this.signals.push({ s: Math.round(s0 + len * 0.75), state: 'red' });
+      this.addPiece(len, 0, 0);
       this.nextIsCurve = true;
       return;
     }

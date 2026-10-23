@@ -1,6 +1,7 @@
 // 画面切り替えとメニュー・ショップ・アップグレードの描画
 import { TRAINS, UPGRADES, save, persist, lv, upgradeCost, trainById, effectiveStats } from './data.js';
 import { sfx } from './audio.js';
+import { ACH, checkAch, achCount } from './achievements.js';
 
 export const $ = id => document.getElementById(id);
 const ICON = { eloco: '🚃', commuter: '🚃', steam: '🚂', express: '🚆', shinkansen: '🚅', maglev: '🚄' };
@@ -11,6 +12,7 @@ export function show(id) {
   if (id === 'menu') renderMenu();
   if (id === 'shop') renderShop();
   if (id === 'upgrade') renderUpgrade();
+  if (id === 'achv') renderAch();
   refreshCoins();
 }
 
@@ -27,6 +29,7 @@ function renderMenu() {
   $('bestDist').textContent = Math.floor(save.best).toLocaleString();
   $('bestStation').textContent = save.bestStation ? `（${save.bestStation}駅まで）` : '';
   $('btnTut').classList.toggle('fresh', !save.tutorialDone);
+  $('achCount').textContent = `${achCount()} / ${ACH.length}`;
 }
 
 function statBars(t) {
@@ -69,6 +72,7 @@ function renderShop() {
       } else sfx.click();
       save.selected = t.id;
       persist();
+      checkAch();
       renderShop(); refreshCoins();
     };
     list.appendChild(c);
@@ -92,8 +96,42 @@ function renderUpgrade() {
       save.coins -= cost;
       save.up[u.id] = l + 1;
       persist(); sfx.coin();
+      checkAch();
       renderUpgrade(); refreshCoins();
     };
     list.appendChild(c);
   }
+}
+
+function renderAch() {
+  const list = $('achList');
+  list.innerHTML = '';
+  $('achHead').innerHTML = `解除 <b>${achCount()}</b> / ${ACH.length}`;
+  for (const a of ACH) {
+    const got = !!save.ach[a.id];
+    const secret = a.hidden && !got;
+    const c = document.createElement('div');
+    c.className = 'ach' + (got ? ' got' : '');
+    let bar = '';
+    if (a.prog && !got && !secret) {
+      const [cur, max, unit] = a.prog();
+      bar = `<div class="bar"><i style="width:${Math.min(100, cur / max * 100)}%"></i></div><small>${Math.min(cur, max).toLocaleString()} / ${max.toLocaleString()} ${unit}</small>`;
+    }
+    c.innerHTML = `<div class="ach-ic">${secret ? '❔' : a.icon}</div>
+      <div class="ach-body"><b>${secret ? '？？？' : a.name}</b><span>${secret ? '解除すると内容がわかる隠し実績' : a.desc}</span>${bar}</div>
+      <div class="ach-rw">${got ? '✅' : '🪙' + a.reward.toLocaleString()}</div>`;
+    list.appendChild(c);
+  }
+}
+
+// 実績解除の通知
+export function achToast(a) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<div class="t-ic">${a.icon}</div><div><small>🏆 実績解除！</small><b>${a.name}</b><span>🪙 +${a.reward.toLocaleString()}</span></div>`;
+  $('toasts').appendChild(el);
+  sfx.fanfare();
+  refreshCoins();
+  setTimeout(() => el.classList.add('out'), 3200);
+  setTimeout(() => el.remove(), 3800);
 }

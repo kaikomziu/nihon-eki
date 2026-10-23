@@ -74,4 +74,5 @@ export const sfx = {
     tone(60, 1.5, 'sawtooth', 0.4);
   },
   click() { tone(700, 0.05, 'triangle', 0.12); },
+  fanfare() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.25, 'square', 0.09, i * 0.09)); },
 };
