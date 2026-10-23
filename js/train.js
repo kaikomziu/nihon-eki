@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 
 export const NOSE_LEN = { shinkansen: 9, maglev: 11, express: 3.2 };
-export const CAR_LEN = { commuter: 20, express: 21, shinkansen: 25, maglev: 24, steam: 17 };
+export const CAR_LEN = { eloco: 19, commuter: 20, express: 21, shinkansen: 25, maglev: 24, steam: 17 };
 const GAP = 0.8;
 
 const box = new THREE.BoxGeometry(1, 1, 1);
@@ -49,7 +49,7 @@ function carBody(t, len, isHead, isTail, style) {
     g.add(part(box, new THREE.MeshLambertMaterial({ color: t.band }), L, H * 0.42, W + 0.01, cx, y0 + H * 0.62, 0));
   }
   g.add(part(box, stripe, L, 0.32, W + 0.03, cx, y0 + H * 0.3, 0));
-  if (style !== 'commuter') g.add(part(box, stripe2, L, 0.12, W + 0.03, cx, y0 + H * 0.42, 0));
+  if (style !== 'commuter' || t.stripe2 !== t.stripe) g.add(part(box, stripe2, L, 0.12, W + 0.03, cx, y0 + H * 0.42, 0));
   g.add(part(box, roofMat, L, 0.25, W - 0.3, cx, y0 + H + 0.12, 0));
   if (top) g.add(part(box, top, L, H * 0.22, W + 0.02, cx, y0 + H * 0.89, 0)); // 上半分の塗り分け
   if (style === 'commuter') {
@@ -71,7 +71,8 @@ function carBody(t, len, isHead, isTail, style) {
       return;
     }
     // 流線形の先頭（楕円体を引き伸ばす）
-    const n = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), body);
+    const faceMat = t.face !== undefined ? new THREE.MeshLambertMaterial({ color: t.face }) : body;
+    const n = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), faceMat);
     n.rotation.z = -dir * Math.PI / 2;
     n.scale.set(H / 2, nose, W / 2);
     n.position.set(ex, y0 + H / 2, 0);
@@ -138,6 +139,33 @@ function steamLoco(t, len) {
   return g;
 }
 
+// 電気機関車（箱形の車体・前面は塗り分け・パンタグラフ2基）
+function electricLoco(t, len) {
+  const g = new THREE.Group();
+  const body = new THREE.MeshLambertMaterial({ color: t.body });
+  const face = new THREE.MeshLambertMaterial({ color: t.stripe2 });
+  const H = 2.9, W = 2.9, y0 = 1.3;
+  g.add(part(box, body, len, H, W, 0, y0 + H / 2, 0));
+  g.add(part(box, roofMat, len - 0.4, 0.25, W - 0.3, 0, y0 + H + 0.12, 0));
+  for (const dir of [1, -1]) {
+    const ex = dir * len / 2;
+    g.add(part(box, face, 0.08, H * 0.45, W, ex + dir * 0.03, y0 + H * 0.25, 0));   // 前面下部の塗り分け
+    g.add(part(box, glass, 0.08, 0.8, W - 0.5, ex + dir * 0.03, y0 + H * 0.72, 0));
+    if (dir > 0) for (const z of [-1, 1]) g.add(part(box, lightMat, 0.1, 0.22, 0.4, ex + 0.06, y0 + 0.75, z * 0.95));
+    // パンタグラフ
+    const px = dir * (len / 2 - 3.2);
+    const arm = part(box, dark, 2.2, 0.06, 0.06, px, y0 + H + 0.75, 0);
+    arm.rotation.z = dir * 0.5;
+    g.add(arm, part(box, dark, 0.3, 0.08, 1.6, px - dir * 0.9, y0 + H + 1.25, 0));
+  }
+  // 側面の小窓と白い帯
+  for (const x of [-len * 0.3, 0, len * 0.3]) g.add(part(box, glass, 1.2, 0.5, W + 0.02, x, y0 + H * 0.68, 0));
+  g.add(part(box, new THREE.MeshLambertMaterial({ color: t.stripe }), len, 0.12, W + 0.03, 0, y0 + H * 0.12, 0));
+  bogie(g, len / 2 - 3.6, false); bogie(g, -len / 2 + 3.6, false); bogie(g, 0, false);
+  g.add(part(box, dark, len - 1, 0.5, W - 0.2, 0, y0 - 0.15, 0));
+  return g;
+}
+
 function coach(t, len) {
   const g = new THREE.Group();
   const body = new THREE.MeshLambertMaterial({ color: 0x5a1f1a });
@@ -157,6 +185,11 @@ export function buildTrain(t) {
   for (let i = 0; i < t.cars; i++) {
     let m;
     if (style === 'steam') m = i === 0 ? steamLoco(t, len) : coach(t, len);
+    else if (style === 'eloco') {
+      // 機関車＋客車（客車は窓下に白帯2本）
+      m = i === 0 ? electricLoco(t, len)
+        : carBody({ ...t, body: t.coach, stripe: 0xf2f2f2, stripe2: 0xf2f2f2, nose: 0 }, len, false, false, 'express');
+    }
     else m = carBody(t, len, i === 0, i === t.cars - 1, style);
     const holder = new THREE.Group();   // 位置・向きは holder、揺れは内側
     holder.add(m);
@@ -174,5 +207,6 @@ export function buildTrain(t) {
 // 小さなプレビュー用モデル（ショップのサムネイル）
 export function previewTrain(t) {
   const len = CAR_LEN[t.style];
+  if (t.style === 'eloco') return electricLoco(t, len);
   return t.style === 'steam' ? steamLoco(t, len) : carBody(t, len, true, false, t.style);
 }

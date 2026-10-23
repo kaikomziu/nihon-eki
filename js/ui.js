@@ -3,7 +3,7 @@ import { TRAINS, UPGRADES, save, persist, lv, upgradeCost, trainById, effectiveS
 import { sfx } from './audio.js';
 
 export const $ = id => document.getElementById(id);
-const ICON = { commuter: '🚃', steam: '🚂', express: '🚆', shinkansen: '🚅', maglev: '🚄' };
+const ICON = { eloco: '🚃', commuter: '🚃', steam: '🚂', express: '🚆', shinkansen: '🚅', maglev: '🚄' };
 const hex = n => '#' + n.toString(16).padStart(6, '0');
 
 export function show(id) {
@@ -38,7 +38,8 @@ function statBars(t) {
 function renderShop() {
   const list = $('shopList');
   list.innerHTML = '';
-  const order = [...TRAINS.filter(t => !t.real), ...TRAINS.filter(t => t.real)];
+  const byPrice = (a, b) => a.price - b.price;
+  const order = [...TRAINS.filter(t => !t.real).sort(byPrice), ...TRAINS.filter(t => t.real).sort(byPrice)];
   for (const t of order) {
     if (t === order.find(x => x.real === t.real)) {
       const h = document.createElement('h2');
