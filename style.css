@@ -1,0 +1,128 @@
+:root{
+  --navy:#0b1a2e; --navy2:#13294a; --green:#1f8f4e; --green2:#2fbf6a;
+  --yellow:#ffd23f; --orange:#ff8a1f; --red:#e53935; --white:#f4f6fa; --gray:#8a96a8;
+  --font:'M PLUS 1p',system-ui,sans-serif; --dot:'DotGothic16',monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--navy);color:var(--white);font-family:var(--font);user-select:none;-webkit-user-select:none;touch-action:none}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+button{font-family:inherit;cursor:pointer;border:none;color:inherit}
+
+.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;padding:16px;padding-top:max(16px,env(safe-area-inset-top));z-index:2}
+.screen.active{display:flex}
+.overlay{background:rgba(5,12,24,.72);justify-content:center;z-index:5;backdrop-filter:blur(3px)}
+
+/* ---------- タイトル ---------- */
+#title{justify-content:center;gap:28px;background:linear-gradient(180deg,rgba(11,26,46,.15),rgba(11,26,46,.55))}
+.sign-board{background:var(--white);color:#111;border-radius:10px;padding:18px 26px 0;min-width:min(520px,92vw);text-align:center;box-shadow:0 10px 0 #9aa3b0,0 18px 40px rgba(0,0,0,.5);border-top:10px solid var(--green);position:relative;overflow:hidden}
+.sign-top{font-size:16px;letter-spacing:.5em;color:#333}
+.sign-board h1{margin:2px 0 0;font-size:clamp(54px,14vw,96px);font-weight:800;letter-spacing:.12em;line-height:1.1}
+.sign-sub{font-size:14px;letter-spacing:.4em;color:#555;margin-bottom:12px}
+.sign-line{display:flex;justify-content:space-between;background:var(--green);color:#fff;margin:0 -26px;padding:8px 14px;font-size:13px;gap:10px}
+.big-btn{background:linear-gradient(180deg,var(--green2),var(--green));font-size:24px;font-weight:800;padding:14px 56px;border-radius:999px;box-shadow:0 6px 0 #11522c,0 10px 20px rgba(0,0,0,.4);letter-spacing:.2em;transition:transform .08s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #11522c}
+.big-btn.gray{background:linear-gradient(180deg,#6b7789,#4a5566);box-shadow:0 6px 0 #2c3440}
+#btnStart{animation:pulse 1.6s infinite}
+@keyframes pulse{50%{transform:scale(1.06)}}
+.ticket-hint{font-size:12px;color:#cfd6e2;text-shadow:0 1px 3px #000;text-align:center}
+
+/* ---------- ロード ---------- */
+#loading{justify-content:center;background:var(--navy)}
+.load-box{width:min(420px,90vw);text-align:center}
+.load-train{font-size:56px;animation:run 1s linear infinite}
+@keyframes run{0%{transform:translateX(-30px)}50%{transform:translateX(30px)}100%{transform:translateX(-30px)}}
+.load-text{font-family:var(--dot);font-size:20px;margin:10px 0;color:var(--yellow)}
+.load-bar{height:14px;background:#22344f;border-radius:7px;overflow:hidden;border:2px solid #34507a}
+#loadFill{height:100%;width:0;background:repeating-linear-gradient(90deg,var(--yellow) 0 14px,var(--orange) 14px 28px);transition:width .15s}
+.load-tip{margin-top:14px;font-size:13px;color:#b6c2d4;min-height:2em}
+
+/* ---------- 共通トップバー ---------- */
+.topbar{width:100%;max-width:900px;display:flex;align-items:center;gap:10px;background:var(--navy2);border-bottom:4px solid var(--green);padding:10px 14px;border-radius:10px}
+.station-name{flex:1;font-size:22px;font-weight:800}
+.station-name small{font-size:13px;color:var(--gray);margin-left:6px}
+.coin-pill{background:#000a;border:2px solid var(--yellow);color:var(--yellow);border-radius:999px;padding:4px 14px;font-weight:800;font-size:18px;white-space:nowrap}
+.back-btn{background:#2a3f63;padding:8px 12px;border-radius:8px;font-size:15px}
+
+/* ---------- メニュー ---------- */
+#menu,#shop,#upgrade{background:linear-gradient(180deg,rgba(11,26,46,.55),rgba(11,26,46,.85));gap:14px;overflow-y:auto}
+.menu-current{width:100%;max-width:900px;background:#0008;border-radius:10px;padding:10px 14px;font-size:14px;color:#cfd6e2}
+.menu-current b{color:var(--yellow);font-size:17px}
+.menu-grid{width:100%;max-width:900px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:auto}
+.menu-btn{background:var(--white);color:#111;border-radius:14px;padding:22px 10px;font-size:22px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 6px 0 #9aa3b0;border-top:8px solid #2a3f63}
+.menu-btn.run{border-top-color:var(--orange)}
+.menu-btn .ic{font-size:42px}
+.menu-btn small{font-size:12px;color:#556;font-weight:500}
+.menu-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #9aa3b0}
+.menu-best{font-size:14px;color:#cfd6e2}
+.menu-best b{color:var(--yellow)}
+.link-btn{background:none;color:var(--gray);text-decoration:underline;margin-bottom:auto}
+@media (max-width:600px){.menu-grid{grid-template-columns:1fr;gap:10px}.menu-btn{flex-direction:row;justify-content:flex-start;padding:14px 18px;font-size:21px;white-space:nowrap;gap:12px}.menu-btn .ic{font-size:32px}.menu-btn small{margin-left:auto}.sign-line{font-size:11px;padding:6px 10px}.sign-line span{white-space:nowrap}.station-name{font-size:18px}}
+
+/* ---------- カード ---------- */
+.card-list{width:100%;max-width:900px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding-bottom:20px}
+.card{background:var(--white);color:#111;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;border-left:8px solid var(--c,#888)}
+.card h3{margin:0;font-size:19px}
+.card .desc{font-size:12px;color:#556}
+.card .stats{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:12px;align-items:center}
+.bar{height:8px;background:#dde2ea;border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c,#2fbf6a)}
+.card button{margin-top:auto;padding:10px;border-radius:8px;font-weight:800;font-size:16px;background:var(--green);color:#fff}
+.card button.sel{background:#2a3f63}
+.card button.cur{background:#bbb;color:#333;cursor:default}
+.card button:disabled{background:#c8ced8;color:#778;cursor:default}
+.lv-pips{display:flex;gap:3px}
+.lv-pips i{flex:1;height:8px;background:#dde2ea;border-radius:2px}
+.lv-pips i.on{background:var(--orange)}
+
+/* ---------- HUD ---------- */
+.hud{padding:0;pointer-events:none}
+.hud button{pointer-events:auto}
+.hud-top{position:absolute;top:max(8px,env(safe-area-inset-top));left:8px;right:8px;display:flex;gap:6px;align-items:stretch}
+.hud-box{background:#000a;border-radius:8px;padding:4px 10px;font-family:var(--dot);display:flex;align-items:baseline;gap:4px;border-bottom:3px solid var(--green)}
+.hud-box label{font-size:11px;color:var(--gray)}
+.hud-box b{font-size:20px;color:var(--yellow);font-weight:400}
+.hud-box i{font-size:11px;font-style:normal}
+.hud-box.next{flex:1;justify-content:flex-start;overflow:hidden;white-space:nowrap}
+.hud-box.next b{font-size:15px;color:#fff;overflow:hidden;text-overflow:ellipsis}
+.hud-small{background:#000a;border-radius:8px;font-size:20px;width:42px}
+.hud-warn{position:absolute;top:60px;left:50%;transform:translateX(-50%);font-weight:800;font-size:20px;color:#fff;background:var(--red);padding:4px 18px;border-radius:6px;display:none;animation:blink .4s infinite alternate}
+@keyframes blink{to{opacity:.4}}
+.hud-msg{position:absolute;top:30%;left:50%;transform:translateX(-50%);font-size:clamp(22px,5vw,38px);font-weight:800;text-shadow:0 3px 8px #000;text-align:center;white-space:nowrap;opacity:0;transition:opacity .3s}
+.hud-msg.show{opacity:1}
+.meter{position:absolute;left:10px;bottom:max(12px,env(safe-area-inset-bottom));background:#000b;border-radius:12px;padding:8px 14px;width:190px;border:2px solid #34507a}
+.speed{font-family:var(--dot);display:flex;align-items:baseline;gap:4px}
+.speed b{font-size:46px;font-weight:400;line-height:1;color:#7df9a8}
+.speed i{font-style:normal;font-size:14px}
+.limit{font-size:14px;margin:2px 0 6px;color:#fff}
+.limit.over{color:var(--red);font-weight:800}
+.gauge{position:relative;height:10px;background:#22344f;border-radius:5px;overflow:hidden}
+#hGauge{height:100%;width:0;background:linear-gradient(90deg,#2fbf6a,#ffd23f,#e53935)}
+#hGaugeLimit{position:absolute;top:-2px;bottom:-2px;width:3px;background:#fff;left:100%}
+.lever{position:absolute;right:10px;bottom:max(12px,env(safe-area-inset-bottom));display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto auto auto;gap:6px;align-items:center;justify-items:center}
+.lv-btn{width:88px;height:70px;border-radius:12px;font-size:26px;font-weight:800;background:linear-gradient(180deg,#3a8ee8,#215fae);box-shadow:0 5px 0 #133a6b;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;grid-column:1}
+.lv-btn small{font-size:11px;margin-top:4px}
+.lv-btn.brake{background:linear-gradient(180deg,#f39b2b,#c66a0b);box-shadow:0 5px 0 #6e3a05}
+.lv-btn.eb{background:linear-gradient(180deg,#ef4d4a,#a31a17);box-shadow:0 5px 0 #5d0d0b;height:46px;font-size:18px}
+.lv-btn:active{transform:translateY(3px);box-shadow:none}
+.notch{font-family:var(--dot);font-size:26px;background:#000c;border-radius:8px;width:88px;text-align:center;padding:4px 0;color:var(--yellow);grid-column:1}
+.notch-scale{grid-column:2;grid-row:1/5;display:flex;flex-direction:column;gap:2px;background:#000a;padding:4px;border-radius:6px;font-family:var(--dot);font-size:10px}
+.notch-scale span{padding:0 4px;border-radius:3px;color:#889}
+.notch-scale span.p{color:#7fb8ff}.notch-scale span.b{color:#ffb36b}.notch-scale span.e{color:#ff6b6b}
+.notch-scale span.on{background:#fff;color:#000}
+.horn{position:absolute;right:160px;bottom:max(12px,env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;background:#000a;font-size:26px;border:2px solid #34507a}
+@media (max-width:600px){
+  .meter{width:150px;padding:6px 10px}.speed b{font-size:36px}
+  .lv-btn{width:76px;height:60px}.notch{width:76px;font-size:22px}
+  .horn{right:auto;left:10px;bottom:auto;top:110px;width:46px;height:46px;font-size:20px}
+  .hud-box{padding:3px 6px}.hud-box b{font-size:16px}
+}
+
+/* ---------- パネル ---------- */
+.panel{background:var(--white);color:#111;border-radius:14px;padding:20px 24px;width:min(380px,92vw);display:flex;flex-direction:column;gap:10px;border-top:10px solid var(--red);text-align:center}
+.panel h2{margin:0;font-size:32px}
+.panel .big-btn{font-size:19px;padding:12px;color:#fff}
+.r-reason{font-size:13px;color:#667;margin-bottom:6px}
+.r-row{display:flex;justify-content:space-between;border-bottom:1px dashed #ccd;padding:4px 0;font-size:15px}
+.r-row.total{font-size:20px;border:none;color:var(--green)}
+.r-best{color:var(--orange);font-weight:800;min-height:1.2em}
+#pause .panel{border-top-color:#3a8ee8}
