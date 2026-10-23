@@ -9,7 +9,7 @@ function rng(seed) {
 }
 
 export class Path {
-  constructor({ vmax, seed = Date.now(), stationGap = 2600 }) {
+  constructor({ vmax, seed = Date.now(), stationGap = 2600, tutorial = false }) {
     this.vmax = vmax;             // m/s
     this.rand = rng(seed);
     this.stationGap = stationGap;
@@ -21,6 +21,16 @@ export class Path {
     this.nextIsCurve = false;
     // 出発駅
     this.stations.push({ stop: 160, name: '日本駅', start: true });
+    if (tutorial) {
+      // 練習コース：長い直線 → 制限45km/hのカーブ → 駅
+      this.addPiece(1300, 0, 0);
+      this.addCurve(160, 40 * Math.PI / 180, 1);
+      const stop = this.length + 900;
+      this.stations.push({ stop, name: '見習い' });
+      this.lastStation = stop;
+      this.addPiece(2500, 0, 0);
+      return;
+    }
     this.addPiece(900, 0, 0);
   }
 
@@ -69,15 +79,20 @@ export class Path {
     const R = Math.max(160, (v * v) / A_SIGN);
     // 最大でも ±0.5+60° ≒ 89° なので x は常に増え、線路は交差しない
     const theta = (15 + r() * 45) * Math.PI / 180;
-    const arc = R * theta;
-    const lt = Math.min(220, Math.max(40, R * 0.06));
 
     // 進行方向が東から大きくそれないように向きを選ぶ
     const hNow = this.h[this.length];
     let dir = r() < 0.5 ? -1 : 1;
     if (hNow > 0.5) dir = -1; else if (hNow < -0.5) dir = 1;
-    const k = dir / R;
+    this.addCurve(R, theta, dir);
+  }
 
+  // 緩和曲線つきのカーブ（半径R, 角度theta）
+  addCurve(R, theta, dir) {
+    const s0 = this.length;
+    const arc = R * theta;
+    const lt = Math.min(220, Math.max(40, R * 0.06));
+    const k = dir / R;
     const limitKmh = Math.max(15, Math.floor(Math.sqrt(A_SIGN * R) * 3.6 / 5) * 5);
     this.curves.push({ start: s0, end: s0 + lt * 2 + arc, R, limit: limitKmh, dir });
     this.addPiece(lt, 0, k);

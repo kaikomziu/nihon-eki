@@ -49,7 +49,8 @@
     <button class="menu-btn" data-go="shop"><span class="ic">🛒</span>ショップ<small>電車を買う</small></button>
     <button class="menu-btn" data-go="upgrade"><span class="ic">🔧</span>アップグレード<small>性能を強化</small></button>
   </div>
-  <div class="menu-best">最長走行記録: <b id="bestDist">0</b> m</div>
+  <button class="menu-tut" data-go="tutorial" id="btnTut">🔰 チュートリアル<small>はじめての人はここから</small></button>
+  <div class="menu-best">最長走行記録: <b id="bestDist">0</b> m<span id="bestStation"></span></div>
   <button class="link-btn" id="btnBackTitle">タイトルへ</button>
 </section>
 
@@ -84,6 +85,11 @@
   </div>
   <div class="hud-warn" id="hWarn"></div>
   <div class="hud-msg" id="hMsg"></div>
+  <div class="station-board" id="stationBoard">
+    <div class="sb-name" id="sbName"></div>
+    <div class="sb-kana" id="sbKana"></div>
+    <div class="sb-line"><span id="sbPrev"></span><span id="sbNext"></span></div>
+  </div>
   <div class="meter">
     <div class="speed"><b id="hSpeed">0</b><i>km/h</i></div>
     <div class="limit" id="hLimit">制限 --</div>
@@ -97,6 +103,14 @@
     <button id="btnEB" class="lv-btn eb">非常</button>
   </div>
   <button id="btnHorn" class="horn">📯</button>
+  <div class="tut-box" id="tutBox">
+    <div class="tut-head"><span>🔰 チュートリアル</span><span id="tutStep"></span></div>
+    <div class="tut-text" id="tutText"></div>
+    <div class="tut-btns">
+      <button id="tutSkip" class="tut-skip">やめる</button>
+      <button id="tutNext" class="tut-next">次へ ▶</button>
+    </div>
+  </div>
 </section>
 
 <!-- ポーズ -->
@@ -114,6 +128,7 @@
     <h2 id="rTitle">脱線！</h2>
     <div class="r-reason" id="rReason"></div>
     <div class="r-row"><span>走行距離</span><b id="rDist">0 m</b></div>
+    <div class="r-row"><span>到達駅</span><b id="rStation">-</b></div>
     <div class="r-row"><span>停車ボーナス</span><b id="rBonus">0</b></div>
     <div class="r-row"><span>コイン倍率</span><b id="rMul">x1.0</b></div>
     <div class="r-row total"><span>獲得コイン</span><b id="rCoin">0</b></div>

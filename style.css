@@ -126,3 +126,36 @@ button{font-family:inherit;cursor:pointer;border:none;color:inherit}
 .r-row.total{font-size:20px;border:none;color:var(--green)}
 .r-best{color:var(--orange);font-weight:800;min-height:1.2em}
 #pause .panel{border-top-color:#3a8ee8}
+
+/* ---------- チュートリアル ---------- */
+.menu-tut{width:100%;max-width:900px;background:#fff3c4;color:#5a4300;border-radius:12px;padding:12px 16px;font-size:19px;font-weight:800;display:flex;align-items:center;gap:12px;box-shadow:0 5px 0 #c9a227;border-left:8px solid var(--yellow)}
+.menu-tut{white-space:nowrap}
+.menu-tut small{margin-left:auto;font-size:12px;font-weight:500;white-space:normal;text-align:right}
+.menu-tut.fresh{animation:pulse 1.4s infinite}
+.menu-tut:active{transform:translateY(3px);box-shadow:0 2px 0 #c9a227}
+.tut-box{display:none;position:absolute;top:calc(max(8px,env(safe-area-inset-top)) + 46px);left:50%;transform:translateX(-50%);width:min(560px,calc(100% - 16px));background:#fffdf4;color:#1a1a1a;border-radius:12px;border-left:8px solid var(--yellow);box-shadow:0 8px 24px rgba(0,0,0,.45);padding:10px 14px;pointer-events:auto;z-index:3}
+.hud.tut .tut-box{display:block}
+.tut-head{display:flex;justify-content:space-between;font-size:12px;color:#8a6d00;font-weight:800;margin-bottom:4px}
+.tut-text{font-size:16px;line-height:1.55}
+.tut-text b{color:#c0392b}
+.tut-text small{display:block;font-size:12px;color:#667;margin-top:2px}
+.tut-btns{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.tut-skip{background:none;color:#889;font-size:13px;text-decoration:underline;padding:4px}
+.tut-next{background:var(--green);color:#fff;font-weight:800;font-size:16px;padding:8px 22px;border-radius:999px;box-shadow:0 4px 0 #11522c}
+.tut-next:active{transform:translateY(3px);box-shadow:none}
+.tut-next[hidden]{display:none}
+.tut-goal{display:inline-block;background:#ffe9a8;border-radius:6px;padding:0 6px;font-size:13px;color:#5a4300;margin-top:4px}
+.tut-focus{outline:4px solid var(--yellow);outline-offset:3px;border-radius:12px;animation:tutGlow .8s infinite alternate;position:relative;z-index:4}
+@keyframes tutGlow{from{box-shadow:0 0 0 0 rgba(255,210,63,.9)}to{box-shadow:0 0 22px 8px rgba(255,210,63,.6)}}
+.hud.tut .horn{display:none}
+.hud.tut .hud-warn{top:auto;bottom:42%}
+.hud.tut .hud-msg{top:46%}
+
+/* ---------- 駅名標バナー ---------- */
+.station-board{position:absolute;top:24%;left:50%;transform:translate(-50%,-12px);width:min(420px,86vw);background:#fff;color:#111;border-radius:8px;overflow:hidden;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5);opacity:0;transition:opacity .35s,transform .35s;pointer-events:none}
+.station-board.show{opacity:1;transform:translate(-50%,0)}
+.sb-name{font-size:clamp(34px,9vw,52px);font-weight:800;letter-spacing:.15em;padding:8px 0 0}
+.sb-kana{font-size:13px;color:#555;min-height:1.4em;padding-bottom:6px}
+.sb-line{display:flex;justify-content:space-between;background:var(--green);color:#fff;font-size:13px;padding:5px 10px;min-height:1.6em}
+.hud.tut .station-board{top:auto;bottom:34%}
+.hud.tut .hud-box:has(#hCoin){display:none}

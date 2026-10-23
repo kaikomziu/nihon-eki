@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { save, persist, trainById, effectiveStats } from './data.js';
+import { save, persist, trainById, effectiveStats, TRAINS } from './data.js';
 import { Path, A_SIGN } from './track.js';
 import { World } from './world.js';
 import { buildTrain } from './train.js';
@@ -30,13 +30,13 @@ const v3 = new THREE.Vector3(), look = new THREE.Vector3();
 // ---------- 編成 ----------
 let path, train, trainDef, trainGroup;
 
-function setupTrack(def, vmaxMs, seed) {
+function setupTrack(def, vmaxMs, seed, tutorial = false) {
   if (trainGroup) {
     scene.remove(trainGroup);
     trainGroup.traverse(n => { n.geometry?.dispose?.(); });
   }
   trainDef = def;
-  path = new Path({ vmax: vmaxMs, seed });
+  path = new Path({ vmax: vmaxMs, seed, tutorial });
   world.setPath(path, def.style);
   train = buildTrain(def);
   trainGroup = new THREE.Group();
@@ -84,19 +84,25 @@ const NOTCH_LABELS = ['EB', 'B8', 'B7', 'B6', 'B5', 'B4', 'B3', 'B2', 'B1', 'N',
 const notchName = n => NOTCH_LABELS[n + 9];
 let G = null;
 
-function startDrive() {
-  const def = trainById(save.selected);
-  const st = effectiveStats(def);
-  setupTrack(def, st.vmax / 3.6, (Math.random() * 1e9) | 0);
+function startDrive(tutorial = false) {
+  // チュートリアルは強化なしの通勤電車で固定
+  const def = tutorial ? TRAINS[0] : trainById(save.selected);
+  const st = tutorial
+    ? { vmax: def.vmax, accel: def.accel, brake: def.brake, stab: def.stab, coinMul: 1, ats: 0 }
+    : effectiveStats(def);
+  setupTrack(def, st.vmax / 3.6, (Math.random() * 1e9) | 0, tutorial);
   G = {
     st, s: 160, v: 0, notch: -8, bonus: 0, ats: st.ats, phase: 'run', t: 0,
     cam: 0, lastJoint: 160, msgT: 0, alarmT: 0, derailT: 0, reason: '',
     camPos: new THREE.Vector3(), camLook: new THREE.Vector3(), first: true,
+    reached: '日本駅', stationT: 0, tut: null,
   };
   mode = 'drive';
   buildNotchScale();
   setNotch(-8, true);
   placeCars(G.s, 0, 0);
+  $('hud').classList.toggle('tut', tutorial);
+  if (tutorial) tutStart();
 }
 
 function buildNotchScale() {
@@ -126,6 +132,19 @@ function message(text, dur = 2) {
   G.msgT = dur;
 }
 
+// 駅に着いた／通過したときの駅名標
+function stationBanner(sta, note) {
+  const i = path.stations.indexOf(sta);
+  path.ensure(sta.stop + path.stationGap + 2000);
+  $('sbName').textContent = sta.name;
+  $('sbKana').textContent = note;
+  $('sbPrev').textContent = '◀ ' + path.stations[i - 1].name;
+  $('sbNext').textContent = path.stations[i + 1] ? path.stations[i + 1].name + ' ▶' : '';
+  $('stationBoard').classList.add('show');
+  G.stationT = 3.5;
+  G.reached = sta.name;
+}
+
 function maxCurvature(sFront) {
   let k = 0;
   for (const off of [0, train.total * 0.5, train.total]) {
@@ -139,6 +158,8 @@ function updateDrive(dt) {
   const st = G.st;
   G.t += dt;
   if (G.msgT > 0 && (G.msgT -= dt) <= 0) $('hMsg').classList.remove('show');
+  if (G.stationT > 0 && (G.stationT -= dt) <= 0) $('stationBoard').classList.remove('show');
+  if (G.tut?.hold) dt = 0; // 説明中は時間を止める
 
   if (G.phase === 'run') {
     const vmax = st.vmax / 3.6;
@@ -164,7 +185,13 @@ function updateDrive(dt) {
       if ((G.alarmT -= dt) <= 0) { sfx.alarm(); G.alarmT = 0.35; }
     }
     if (lat > derailA) {
-      if (G.ats > 0) {
+      if (G.tut) {
+        // チュートリアルでは脱線させずに減速させる
+        G.v = Math.sqrt(A_SIGN / Math.abs(k)) * 0.9;
+        setNotch(-4, true);
+        message('⚠ 速すぎ！<br><small>本番なら脱線です。カーブは制限速度以下で</small>', 2.5);
+        sfx.alarm();
+      } else if (G.ats > 0) {
         G.ats--;
         G.v = Math.sqrt(A_SIGN / Math.abs(k)) * 0.95;
         setNotch(-8, true);
@@ -180,17 +207,24 @@ function updateDrive(dt) {
     const sta = path.stationAfter(G.s);
     if (sta && !sta.done) {
       const err = G.s - sta.stop;
+      if (!sta.announced && err > -700) {
+        sta.announced = true;
+        message(`まもなく <b>${sta.name}</b> 駅`, 2.5);
+      }
       if (G.v === 0 && Math.abs(err) <= 10) {
         sta.done = true;
         const b = 300 + Math.floor(700 * (1 - Math.abs(err) / 10));
         G.bonus += b;
         sfx.chime();
-        message(`${sta.name}駅 停車！<br><small>誤差 ${Math.abs(err).toFixed(1)}m　ボーナス +${b}</small>`, 3);
+        stationBanner(sta, `停車！ 誤差 ${Math.abs(err).toFixed(1)}m　ボーナス +${b}`);
+        if (G.tut) G.tut.station = 'stop';
       } else if (err > 10) {
         sta.done = true;
-        message(`${sta.name}駅 通過`, 1.5);
+        stationBanner(sta, '通過');
+        if (G.tut) G.tut.station = 'pass';
       }
     }
+    if (G.tut) tutUpdate();
 
     // ガタンゴトン
     if (trainDef.style !== 'maglev' && G.s - G.lastJoint > 25) { G.lastJoint = G.s; if (G.v > 1) sfx.joint(G.v * 3.6); }
@@ -245,11 +279,13 @@ function finish(quit) {
   const coins = Math.floor((dist + G.bonus) * mul);
   const isBest = dist > save.best;
   save.coins += coins;
-  if (isBest) save.best = dist;
+  if (isBest) { save.best = dist; save.bestStation = G.reached; }
   persist();
   $('rTitle').textContent = quit ? '運転終了' : '脱線！';
   $('rReason').textContent = quit ? 'おつかれさまでした。' : G.reason;
   $('rDist').textContent = dist.toLocaleString() + ' m';
+  $('rStation').textContent = G.reached + ' 駅';
+  $('btnRetry').textContent = 'もう一度';
   $('rBonus').textContent = '+' + G.bonus.toLocaleString();
   $('rMul').textContent = 'x' + mul.toFixed(2);
   $('rCoin').textContent = '🪙 ' + coins.toLocaleString();
@@ -329,6 +365,89 @@ function updateCamera(dt) {
   camera.lookAt(G.camLook);
 }
 
+// ---------- チュートリアル ----------
+const TUT_CURVE_LIMIT = 45;
+const kmh = () => G.v * 3.6;
+const TUT_STEPS = [
+  { text: 'ようこそ、日本駅へ！🚃<br>運転士見習いのあなたに、電車の動かし方を教えます。' },
+  { focus: '.meter', text: '左下は<b>スピードメーター</b>。<br>今の速さ(km/h)と、守るべき<b>制限速度</b>が表示されます。' },
+  { focus: '.lever', text: '右下は<b>マスコン</b>（運転レバー）。<br><b>▲</b>で加速(P1〜P5)、<b>▼</b>でブレーキ(B1〜B8)。<b>N</b>は何もしない状態です。<small>PCは ↑↓ キー（W / S キー）</small>' },
+  { focus: '#btnUp', goal: 'P5 にする', text: '<b>▲</b>を何回か押して、いちばん強い <b>P5</b> にしよう！<small>押しっぱなしでもOK</small>',
+    done: () => G.notch === 5 },
+  { focus: '.meter', goal: '60km/h まで加速', text: 'ぐんぐん加速中…！<br>スピードメーターが <b>60km/h</b> になるまで待とう。',
+    done: () => kmh() >= 60 },
+  { focus: '#btnDown', goal: 'N にする', text: '<b>▼</b>を押して <b>N</b> に戻そう。<br>加速が止まり、ほぼ同じ速さで走り続けます（惰行）。<small>PCは N キーで一発で戻せます</small>',
+    done: () => G.notch === 0 },
+  { focus: '.hud-box.next', text: '画面上の<b>「次」</b>には、この先のカーブや駅までの距離が出ます。<br>この先に<b>制限45km/h</b>のカーブ！ 速すぎると<b>脱線</b>してしまいます。' },
+  { focus: '#btnDown', goal: '45km/h 以下にする', text: '<b>▼</b>でブレーキ！ カーブの前に <b>45km/h 以下</b>まで落とそう。<small>B4〜B6くらいがおすすめ</small>',
+    done: () => kmh() <= TUT_CURVE_LIMIT },
+  { focus: '.meter', goal: 'カーブを抜ける', text: 'いいね！ ▲でブレーキを緩めて <b>N</b> にし、<b>45km/h 以下</b>のままカーブを抜けよう。<small>止まってしまったら▲で少し加速。表示が「制限なし」に戻ればクリア</small>',
+    done: () => G.s - train.total > path.curves[0].end },
+  { text: 'カーブ通過！🎉<br>次は<b>駅に止まる</b>練習。ホームの先の黄色い<b>「停」マーク</b>の前後10m以内で止めると、<b>停車ボーナス</b>がもらえます。' },
+  { focus: '.hud-box.next', goal: '見習い駅に止まる', text: '▲で加速して駅へ。「次」の残りが <b>300m</b> くらいになったらブレーキ！<br>残り <b>0m</b> でピタッと止まれば完璧。',
+    done: () => !!G.tut.station },
+  { text: () => (G.tut.station === 'stop' ? 'ナイス停車！🚉' : '通過しちゃった…本番では止まるとボーナスがもらえるよ。')
+      + '<br>ほかのボタンも覚えておこう。<small>非常（スペース）…いちばん強いブレーキ ／ 📷（C）…カメラ切替 ／ ⏸（Esc）…一時停止 ／ 📯（H）…警笛</small>' },
+  { next: '完了 ✔', text: '本番は<b>脱線するまで</b>走り続けるモード。走った距離(m)がそのまま<b>コイン</b>になります。<br>一定の距離ごとに駅があるので、どこの駅まで行けるか挑戦しよう！' },
+];
+
+function tutStart() {
+  G.tut = { i: 0, hold: true, station: null };
+}
+
+function tutRender() {
+  const step = TUT_STEPS[G.tut.i];
+  const info = !step.done;
+  G.tut.hold = info;
+  const text = typeof step.text === 'function' ? step.text() : step.text;
+  $('tutText').innerHTML = text + (step.goal ? `<br><span class="tut-goal">🎯 ${step.goal}</span>` : '');
+  $('tutStep').textContent = `${G.tut.i + 1} / ${TUT_STEPS.length}`;
+  $('tutNext').hidden = !info;
+  $('tutNext').textContent = step.next || '次へ ▶';
+  document.querySelectorAll('.tut-focus').forEach(e => e.classList.remove('tut-focus'));
+  if (step.focus) document.querySelectorAll(step.focus).forEach(e => e.classList.add('tut-focus'));
+}
+
+function tutAdvance() {
+  if (!G?.tut || G.phase !== 'run' || paused) return;
+  if (G.tut.i >= TUT_STEPS.length - 1) { tutComplete(); return; }
+  G.tut.i++;
+  tutRender();
+}
+
+function tutUpdate() {
+  const step = TUT_STEPS[G.tut.i];
+  if (step.done && step.done()) { sfx.coin(); tutAdvance(); }
+}
+
+function tutComplete() {
+  G.phase = 'done';
+  G.tut.hold = false;
+  setRunning(0, 0, 0, false);
+  document.querySelectorAll('.tut-focus').forEach(e => e.classList.remove('tut-focus'));
+  const first = !save.tutorialDone;
+  const reward = first ? 500 : 0;
+  save.coins += reward;
+  save.tutorialDone = true;
+  persist();
+  $('hud').classList.remove('tut');
+  $('rTitle').textContent = 'チュートリアル完了！';
+  $('rReason').textContent = '運転士見習い、卒業です。';
+  $('rDist').textContent = Math.floor(G.s - 160).toLocaleString() + ' m';
+  $('rStation').textContent = G.reached + ' 駅';
+  $('rBonus').textContent = '+' + G.bonus.toLocaleString();
+  $('rMul').textContent = 'x1.00';
+  $('rCoin').textContent = '🪙 ' + reward.toLocaleString();
+  $('rBest').textContent = first ? '🎁 初回クリア報酬 🪙500' : '（報酬は初回のみ）';
+  $('btnRetry').textContent = '本番に出発 🚄';
+  overlay('result', true);
+  sfx.chime();
+  refreshCoins();
+}
+
+$('tutNext').onclick = () => { sfx.click(); tutAdvance(); };
+$('tutSkip').onclick = () => { sfx.click(); goMenu(false); };
+
 // ---------- ロード演出 ----------
 const TIPS = [
   'カーブの手前で制限速度まで落とそう。速すぎると脱線！',
@@ -373,17 +492,17 @@ async function goMenu(withLoad) {
   busy = false;
 }
 
-async function goDrive() {
+async function goDrive(tutorial = false) {
   if (busy) return;
   busy = true;
   overlay('result', false); overlay('pause', false);
   await loading([
     ['ダイヤを作成中…', null],
-    ['出発準備中…', () => startDrive()],
+    ['出発準備中…', () => startDrive(tutorial)],
     ['信号よし！', () => { updateDrive(0.016); renderer.compile(scene, camera); }],
   ]);
   show('hud');
-  message('出発進行！ ▲で力行', 2.5);
+  if (tutorial) tutRender(); else message('出発進行！ ▲で力行', 2.5);
   busy = false;
 }
 
@@ -394,7 +513,7 @@ document.querySelectorAll('[data-go]').forEach(b => {
   b.onclick = () => {
     sfx.click();
     const to = b.dataset.go;
-    if (to === 'drive') goDrive(); else show(to);
+    if (to === 'drive' || to === 'tutorial') goDrive(to === 'tutorial'); else show(to);
     if (to === 'menu' && trainDef.id !== save.selected) setupShowcase();
   };
 });
@@ -402,7 +521,11 @@ $('btnRetry').onclick = () => { sfx.click(); goDrive(); };
 $('btnToMenu').onclick = () => { sfx.click(); goMenu(false); };
 $('btnPause').onclick = () => togglePause();
 $('btnResume').onclick = () => togglePause(false);
-$('btnQuit').onclick = () => { overlay('pause', false); paused = false; if (G && G.phase === 'run') finish(true); };
+$('btnQuit').onclick = () => {
+  overlay('pause', false); paused = false;
+  if (G?.tut) goMenu(false);
+  else if (G && G.phase === 'run') finish(true);
+};
 $('btnCam').onclick = () => { if (G) { G.cam = (G.cam + 1) % 3; G.first = true; } };
 $('btnHorn').onclick = () => sfx.horn();
 

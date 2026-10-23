@@ -25,6 +25,8 @@ function renderMenu() {
   const e = effectiveStats(t);
   $('menuCurrent').innerHTML = `使用車両: <b>${ICON[t.style]} ${t.name}</b>　最高 ${Math.round(e.vmax)}km/h ・ コイン x${e.coinMul.toFixed(2)}`;
   $('bestDist').textContent = Math.floor(save.best).toLocaleString();
+  $('bestStation').textContent = save.bestStation ? `（${save.bestStation}駅まで）` : '';
+  $('btnTut').classList.toggle('fresh', !save.tutorialDone);
 }
 
 function statBars(t) {
